@@ -198,6 +198,42 @@ for d in PeakTools + otherDirs:
                 os.mkdir(join(workpath,d))
 
 
+########################
+# blocking code
+
+diffbind_dir2 = "DiffBind_block"
+
+blocks=config['project']['blocks']
+
+def test_for_block(contrast, blocks):
+   """ only want to run blocking on contrasts where all
+   individuals are on both sides of the contrast """
+   contrastBlock = [ ]
+   for con in contrast:
+       group1 = con[0]
+       group2 = con[1]
+       block1 = [ blocks[sample] for sample in groupdata[group1] ]
+       block2 = [ blocks[sample] for sample in groupdata[group2] ]
+       if len(block1) == len(block2):
+           if len(set(block1).intersection(block2)) == len(block1):
+                contrastBlock.append(con)
+   return contrastBlock  
+       
+contrastBlock = test_for_block(contrast,blocks)
+
+zipGroup1B, zipGroup2B, zipToolCB, contrastsB = zip_contrasts(contrastBlock, PeakTools)
+
+PeakExtensions = { 'macsNarrow': '_peaks.narrowPeak', 'macsBroad': '_peaks.broadPeak',
+                   'sicer': '_broadpeaks.bed', 'gem': '.GEM_events.narrowPeak' ,
+                   'MANorm': '_all_MA.bed', 'DiffbindEdgeR': '_Diffbind_EdgeR.bed',
+                   'DiffbindDeseq2': '_Diffbind_Deseq2.bed', 
+                   'DiffbindEdgeRBlock': '_Diffbind_EdgeR_block.bed',
+                   'DiffbindDeseq2Block': '_Diffbind_Deseq2_block.bed' }
+
+#########################
+
+
+
 cfChIP="yes"
 
 # RULE ALL
@@ -212,6 +248,7 @@ if reps == "yes":
             expand(join(workpath,uropa_dir,downstream_dir,'{PeakTool}_promoter_overlap_summary_table.txt'),PeakTool='DiffbindDeseq2'),
             expand(join(workpath,uropa_dir,diffbind_dir,'{name}_{PeakTool}_uropa_{type}_allhits.txt'),PeakTool=['DiffbindEdgeR','DiffbindDeseq2'],name=contrasts,type=UropaCats),
             expand(join(workpath,diffbind_dir,"{group1}_vs_{group2}-{PeakTool}","{group1}_vs_{group2}-{PeakTool}_Diffbind.html"),zip,group1=zipGroup1,group2=zipGroup2,PeakTool=zipToolC),
+            expand(join(workpath,uropa_dir,diffbind_dir2,'{name}_{PeakTool}_uropa_{type}_allhits.txt'),PeakTool=['DiffbindEdgeRBlock','DiffbindDeseq2Block'],name=contrastsB,type=UropaCats),
         output:
             touch(join(workpath, 'dba.done'))
 else:
@@ -498,3 +535,47 @@ if cfChIP == "yes":
         Rscript -e "source('{params.script2}'); promoterAnnotationWrapper('{output.txt}','{params.gtf}','KEGG')";
         Rscript -e "source('{params.script2}'); promoterAnnotationWrapper('{output.txt}','{params.gtf}','Reactome')";
         """
+
+
+rule diffbind_block:
+    input:
+        lambda w: [ join(workpath, w.PeakTool, chip, chip + PeakExtensions[w.PeakTool]) for chip in chips ]
+    output:
+        html = join(workpath,diffbind_dir2,"{group1}_vs_{group2}-{PeakTool}","{group1}_vs_{group2}-{PeakTool}_Diffbind_block.html"),
+        Deseq2 = join(workpath,diffbind_dir2,"{group1}_vs_{group2}-{PeakTool}","{group1}_vs_{group2}-{PeakTool}_Diffbind_Deseq2_block.bed"),
+        EdgeR = join(workpath,diffbind_dir2,"{group1}_vs_{group2}-{PeakTool}","{group1}_vs_{group2}-{PeakTool}_Diffbind_EdgeR_block.bed"),
+    params:
+        rname="diffbindBlock",
+        Rver = config['tools']['RVER'],
+        rscript1 = join(workpath,"workflow","scripts","runDiffBind_block.R"),
+        rscript2 = join(workpath,"workflow","scripts","DiffBind_v2_ChIPseq_block.Rmd"),
+        outdir    = join(workpath,diffbind_dir2,"{group1}_vs_{group2}-{PeakTool}"),
+        contrast  = "{group1}_vs_{group2}",
+        csvfile   = join(workpath,diffbind_dir2,"{group1}_vs_{group2}-{PeakTool}","{group1}_vs_{group2}-{PeakTool}_Diffbind_block_prep.csv"),
+    run:
+        samplesheet = [",".join(["SampleID","Condition", "Treatment", "Replicate", "bamReads", 
+		          "ControlID", "bamControl", "Peaks", "PeakCaller"])]
+        for condition in wildcards.group1,wildcards.group2:
+            for chip in groupdata[condition]:
+                file = join(workpath, wildcards.PeakTool, chip, chip + PeakExtensions[wildcards.PeakTool])
+                treatment = blocks[chip]
+                replicate = str([ i + 1 for i in range(len(groupdata[condition])) if groupdata[condition][i]== chip ][0])
+                bamReads = join(workpath, bam_dir, chip + ".Q5DD.bam")
+                controlID = chip2input[chip]
+                if controlID != "":
+                    bamControl = join(workpath, bam_dir, controlID + ".Q5DD.bam")
+                else:
+                    bamControl = ""
+                peaks = join(workpath, wildcards.PeakTool, chip, chip + PeakExtensions[wildcards.PeakTool])
+                peakcaller = FileTypesDiffBind[wildcards.PeakTool]
+                samplesheet.append(",".join([chip, condition, treatment, replicate, bamReads, 
+						   	      		 	    	         controlID, bamControl, peaks, peakcaller]))
+
+        f = open(params.csvfile, 'w')
+        f.write ("\n".join(samplesheet))
+        f.close()
+        cmd1 = "module load {params.Rver}; cp {params.rscript2} {params.outdir}; cd {params.outdir}; "
+        cmd2 = "Rscript {params.rscript1} '.' {output.html} {params.csvfile} '{params.contrast}' '{wildcards.PeakTool}'; "
+        cmd3 = "if [ ! -f {output.Deseq2} ]; then touch {output.Deseq2}; fi; "
+        cmd4 = "if [ ! -f {output.EdgeR} ]; then touch	{output.EdgeR}; fi; "
+        shell( cmd1 + cmd2 + cmd3 + cmd4)

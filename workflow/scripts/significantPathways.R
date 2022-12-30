@@ -56,7 +56,7 @@ makeBarplotTop <- function(inData, titleName, PDFfile) {
   inDataCount <- sum(inData@result$p.adjust < 0.1)
   if (inDataCount > 30) { inDataCount = 30 } 
   if (inDataCount > 0) {
-    pdf(PDFile)
+    pdf(PDFfile)
     print(barplot(inData, showCategory = inDataCount,
                   label_format=70, title=titleName, x="GeneRatio") + 
             theme_prism(base_size =8) + theme(legend.title = element_text()) )

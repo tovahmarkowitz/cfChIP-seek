@@ -1,5 +1,5 @@
 ---
-title: "DiffBind: ChIP-seq pipeline"
+title: "DiffBind: ChIP-seq pipeline, paired/blocked analysis"
 output: 
     html_document:
         toc: true
@@ -131,7 +131,8 @@ try(dba.plotPCA(DBdataCounts,DBA_CONDITION),silent=TRUE)
 # Set Up Contrast
 Contrast is Group1 - Group2.
 ```{r contrast}
-DBdatacontrast <- dba.contrast(DBdataCounts, minMembers=2, categories = DBA_CONDITION)
+DBdatacontrast <- dba.contrast(DBdataCounts, minMembers=2, categories = DBA_CONDITION,
+							   block=DBA_TREATMENT)
 print(DBdatacontrast)
 ```
 
@@ -149,8 +150,8 @@ DBAnalysisEdgeR <- dba.analyze(DBdatacontrast, method = DBA_EDGER)
 ```
 
 ```{r report}
-DBReportDeseq2 <- dba.report(DBAnalysisDeseq2, method = DBA_DESEQ2)
-DBReportEdgeR <- dba.report(DBAnalysisEdgeR, method = DBA_EDGER)
+DBReportDeseq2 <- dba.report(DBAnalysisDeseq2, method = DBA_DESEQ2_BLOCK)
+DBReportEdgeR <- dba.report(DBAnalysisEdgeR, method = DBA_EDGER_BLOCK)
 ```
 
 ## PCA {.tabset .tabset-fade}
@@ -158,12 +159,12 @@ Variance of differential peaks only
 
 ### DeSeq2 {-}
 ```{r PCA3, fig.height=5,fig.width=5}
-try(dba.plotPCA(DBAnalysisDeseq2, contrast=1, method= DBA_DESEQ2),silent=TRUE)
+try(dba.plotPCA(DBAnalysisDeseq2, contrast=1, method= DBA_DESEQ2_BLOCK),silent=TRUE)
 ```
 
 ### EdgeR {-}
 ```{r PCA4, fig.height=5,fig.width=5}
-try(dba.plotPCA(DBAnalysisEdgeR, contrast=1, method = DBA_EDGER),silent=TRUE)
+try(dba.plotPCA(DBAnalysisEdgeR, contrast=1, method = DBA_EDGER_BLOCK),silent=TRUE)
 ```
 
 ## MA plot {.tabset .tabset-fade}
@@ -172,12 +173,12 @@ Each dot is a consensus peak.
 
 ### DeSeq2 {-}
 ```{r MA_D}
-try(dba.plotMA(DBAnalysisDeseq2, method = DBA_DESEQ2),silent=TRUE)
+try(dba.plotMA(DBAnalysisDeseq2, method = DBA_DESEQ2_BLOCK),silent=TRUE)
 ```
 
 ### EdgeR {-}
 ```{r MA_E}
-try(dba.plotMA(DBAnalysisEdgeR, method = DBA_EDGER),silent=TRUE)
+try(dba.plotMA(DBAnalysisEdgeR, method = DBA_EDGER_BLOCK),silent=TRUE)
 ```
 
 ## Volcano plot {.tabset .tabset-fade}
@@ -185,12 +186,12 @@ Each dot is a consensus peak.
 
 ### DeSeq2 {-}
 ```{r Volcano1}
-try(dba.plotVolcano(DBAnalysisDeseq2, method = DBA_DESEQ2),silent=TRUE)
+try(dba.plotVolcano(DBAnalysisDeseq2, method = DBA_DESEQ2_BLOCK),silent=TRUE)
 ```
 
 ### EdgeR {-}
 ```{r Volcano2}
-try(dba.plotVolcano(DBAnalysisEdgeR, method = DBA_EDGER),silent=TRUE)
+try(dba.plotVolcano(DBAnalysisEdgeR, method = DBA_EDGER_BLOCK),silent=TRUE)
 ```
 
 ## Heatmap: Differential {.tabset .tabset-fade}
@@ -198,19 +199,21 @@ try(dba.plotVolcano(DBAnalysisEdgeR, method = DBA_EDGER),silent=TRUE)
 
 ### DeSeq2 {-}
 ```{r heatmap4D}
-try(dba.plotHeatmap(DBAnalysisDeseq2,contrast=1,method = DBA_DESEQ2,correlations=FALSE,margin=20,cexRow=1,cexCol=1),silent=TRUE)
+try(dba.plotHeatmap(DBAnalysisDeseq2,contrast=1,method = DBA_DESEQ2_BLOCK,
+                    correlations=FALSE,margin=20,cexRow=1,cexCol=1),silent=TRUE)
 ```
 
 ### EdgeR {-}
 ```{r heatmap4E}
-try(dba.plotHeatmap(DBAnalysisEdgeR,contrast=1,method = DBA_EDGER,correlations=FALSE,margin=20,cexRow=1,cexCol=1),silent=TRUE)
+try(dba.plotHeatmap(DBAnalysisEdgeR,contrast=1,method = DBA_EDGER_BLOCK,
+                    correlations=FALSE,margin=20,cexRow=1,cexCol=1),silent=TRUE)
 ```
 
 ## Top 500 differentially bound peaks {.tabset .tabset-fade}
 ### DeSeq2 {-}
 ```{r Deseq2Report}
-outfile <- paste0(contrasts, "-", peakcaller, "_Diffbind_Deseq2.txt")
-outfile2 <- paste0(contrasts, "-", peakcaller, "_Diffbind_Deseq2.bed")
+outfile <- paste0(contrasts, "-", peakcaller, "_Diffbind_Deseq2_block.txt")
+outfile2 <- paste0(contrasts, "-", peakcaller, "_Diffbind_Deseq2_block.bed")
 DBReportDeseq2$name <- paste0("Peak",1:length(DBReportDeseq2))
 try(rtracklayer::export(DBReportDeseq2, outfile2),silent=TRUE)
 write.table(DBReportDeseq2, outfile, quote=F, sep="\t", row.names=F)
@@ -224,15 +227,16 @@ if (D2i == 0) {
 }
 try(DT::datatable(data.frame(DBReportDeseq2)[1:i,], rownames=F),silent=TRUE)
 
-report2 <- dba.report(DBAnalysisDeseq2,method = DBA_DESEQ2,th=100,bNormalized=T,bFlip=FALSE,precision=0)
-outfile3 <- paste0(contrasts, "-", peakcaller, "_Diffbind_Deseq2_fullList.txt")
+report2 <- dba.report(DBAnalysisDeseq2,method = DBA_DESEQ2_BLOCK,
+                      th=100,bNormalized=T,bFlip=FALSE,precision=0)
+outfile3 <- paste0(contrasts, "-", peakcaller, "_Diffbind_Deseq2_block_fullList.txt")
 write.table(report2, outfile3, quote=F, sep="\t", row.names=F)
 ```
 
 ### EdgeR {-}
 ```{r EdgeRReport}
-outfile <- paste0(contrasts, "-", peakcaller,"_Diffbind_EdgeR.txt")
-outfile2 <- paste0(contrasts, "-", peakcaller,"_Diffbind_EdgeR.bed")
+outfile <- paste0(contrasts, "-", peakcaller,"_Diffbind_EdgeR_block.txt")
+outfile2 <- paste0(contrasts, "-", peakcaller,"_Diffbind_EdgeR_block.bed")
 DBReportEdgeR$name <- paste0("Peak",1:length(DBReportEdgeR))
 try(rtracklayer::export(DBReportEdgeR, outfile2),silent=TRUE)
 write.table(DBReportEdgeR, outfile, quote=F, sep="\t", row.names=F)
@@ -246,8 +250,9 @@ if (Ei == 0) {
 }
 try(DT::datatable(data.frame(DBReportEdgeR)[1:i,], rownames=F),silent=TRUE)
 
-report2 <- dba.report(DBAnalysisEdgeR,method = DBA_EDGER,th=100,bNormalized=T,bFlip=FALSE,precision=0)
-outfile3 <- paste0(contrasts, "-", peakcaller, "_Diffbind_EdgeR_fullList.txt")
+report2 <- dba.report(DBAnalysisEdgeR,method = DBA_EDGER_BLOCK,
+                      th=100,bNormalized=T,bFlip=FALSE,precision=0)
+outfile3 <- paste0(contrasts, "-", peakcaller, "_Diffbind_EdgeR_block_fullList.txt")
 write.table(report2, outfile3, quote=F, sep="\t", row.names=F)
 ```
 
