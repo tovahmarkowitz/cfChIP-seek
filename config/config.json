@@ -5,6 +5,6 @@
         "ADAPTERS_FASTA": "resources/adapters.fa",
         "FASTQ_SCREEN_CONFIG_P1": "/data/OpenOmics/references/common/fastq_screen_db/fastq_screen_p1.conf",
         "FASTQ_SCREEN_CONFIG_P2": "/data/OpenOmics/references/common/fastq_screen_db/fastq_screen_p2.conf",
-        "KRAKENBACDB": "/fdb/kraken/20170202_bacteria"
+        "KRAKENBACDB": "/fdb/kraken/20180907_standard_kraken2"
     }
 }
